@@ -168,35 +168,71 @@ func ensurePackageImport(f *ast.File, pkgPath string) {
 	importDecl.Specs = append(importDecl.Specs, importSpec)
 }
 
-//func ensurePackageImport(f *ast.File, pkgPath string) {
-//	// 检查是否已经导入了 pkgPath 包
-//	for _, imp := range f.Imports {
-//		if imp.Path.Value == strconv.Quote(pkgPath) {
-//			return
-//		}
-//	}
-//
-//	// 如果没有导入 pkgPath 包,则添加一个导入语句
-//	importSpec := &ast.ImportSpec{
-//		Path: &ast.BasicLit{
-//			Kind:  token.STRING,
-//			Value: strconv.Quote(pkgPath),
-//		},
-//	}
-//	f.Imports = append(f.Imports, importSpec)
-//
-//	// 将导入语句添加到 ast.File 的 Decls 字段中
-//	f.Decls = append([]ast.Decl{&ast.GenDecl{
-//		Tok:   token.IMPORT,
-//		Specs: []ast.Spec{importSpec},
-//	}}, f.Decls...)
-//}
+func clearInstrumentFunctions(f *ast.File) {
+	ast.Inspect(f, func(node ast.Node) bool {
+		if function, ok := node.(*ast.FuncDecl); ok {
+			for i, stmt := range function.Body.List {
+				if deferStmt, ok := stmt.(*ast.DeferStmt); ok {
+					if funcLit, ok := deferStmt.Call.Fun.(*ast.FuncLit); ok {
+						if exprStmt, ok := funcLit.Body.List[0].(*ast.ExprStmt); ok {
+							if callExpr, ok := exprStmt.X.(*ast.CallExpr); ok {
+								if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
+									if ident, ok := selectorExpr.X.(*ast.Ident); ok {
+										if ident.Name == "ellen" && selectorExpr.Sel.Name == "Printf" {
+											// 找到包含 ellen.Printf 调用的 defer 语句
+											function.Body.List = append(function.Body.List[:i], function.Body.List[i+1:]...)
+											// 从函数体中移除该 defer 语句
+											break
+										}
+									}
+								}
+							}
+						}
+					}
+
+				}
+			}
+		}
+		return true
+	})
+}
+func clearInstrumentedFile(filePath string) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		fmt.Println("Error parsing file:", err)
+		return
+	}
+
+	// 遍历抽象语法树,并在函数入口处插入 defer 语句
+	clearInstrumentFunctions(f)
+
+	// 将修改后的文件写回磁盘
+	file, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		return
+	}
+	defer file.Close()
+
+	if err := printer.Fprint(file, fset, f); err != nil {
+		fmt.Println("Error writing file:", err)
+	}
+}
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go <file_path> ")
+	if len(os.Args) < 3 {
+		fmt.Println("Usage: go run main.go <file_path> <clear_or_add>")
 		return
 	}
 	filePath := os.Args[1]
-	instrumentFile(filePath)
+	clearOrAdd := os.Args[2]
+
+	if clearOrAdd == "clear" {
+		clearInstrumentedFile(filePath)
+	} else if clearOrAdd == "add" {
+		instrumentFile(filePath)
+	} else {
+		fmt.Println("Invalid argument. Please use 'clear' or 'add'.")
+	}
 }
