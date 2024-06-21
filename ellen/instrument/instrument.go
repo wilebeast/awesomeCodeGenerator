@@ -192,6 +192,9 @@ func clearInstrumentFunctions(f *ast.File) {
 			for i, stmt := range function.Body.List {
 				if deferStmt, ok := stmt.(*ast.DeferStmt); ok {
 					if funcLit, ok := deferStmt.Call.Fun.(*ast.FuncLit); ok {
+						if len(funcLit.Body.List) == 0 {
+							continue
+						}
 						if exprStmt, ok := funcLit.Body.List[0].(*ast.ExprStmt); ok {
 							if callExpr, ok := exprStmt.X.(*ast.CallExpr); ok {
 								if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
