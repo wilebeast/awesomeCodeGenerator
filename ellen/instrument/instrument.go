@@ -168,6 +168,24 @@ func ensurePackageImport(f *ast.File, pkgPath string) {
 	importDecl.Specs = append(importDecl.Specs, importSpec)
 }
 
+func clearOutputParam(fieldList *ast.FieldList) {
+	if fieldList != nil {
+		for _, field := range fieldList.List {
+			if len(field.Names) > 0 {
+				// 遍历每个名字,如果能匹配为"X%d",则将field.Names设置为空
+				for _, name := range field.Names {
+					if strings.HasPrefix(name.Name, "X") && len(name.Name) > 1 {
+						if _, err := strconv.Atoi(name.Name[1:]); err == nil {
+							field.Names = nil
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 func clearInstrumentFunctions(f *ast.File) {
 	ast.Inspect(f, func(node ast.Node) bool {
 		if function, ok := node.(*ast.FuncDecl); ok {
@@ -178,10 +196,12 @@ func clearInstrumentFunctions(f *ast.File) {
 							if callExpr, ok := exprStmt.X.(*ast.CallExpr); ok {
 								if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
 									if ident, ok := selectorExpr.X.(*ast.Ident); ok {
+										// 找到包含 ellen.Printf 调用的 defer 语句
 										if ident.Name == "ellen" && selectorExpr.Sel.Name == "Printf" {
-											// 找到包含 ellen.Printf 调用的 defer 语句
-											function.Body.List = append(function.Body.List[:i], function.Body.List[i+1:]...)
 											// 从函数体中移除该 defer 语句
+											function.Body.List = append(function.Body.List[:i], function.Body.List[i+1:]...)
+											// 清理自动命名参数
+											clearOutputParam(function.Type.Results)
 											break
 										}
 									}
