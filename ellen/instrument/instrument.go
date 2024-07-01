@@ -38,6 +38,31 @@ func instrumentFile(filePath string) {
 func instrumentFunctions(f *ast.File) {
 	ast.Inspect(f, func(node ast.Node) bool {
 		if function, ok := node.(*ast.FuncDecl); ok {
+			if function, ok := node.(*ast.FuncDecl); ok {
+				for _, stmt := range function.Body.List {
+					if deferStmt, ok := stmt.(*ast.DeferStmt); ok {
+						if funcLit, ok := deferStmt.Call.Fun.(*ast.FuncLit); ok {
+							if len(funcLit.Body.List) == 0 {
+								continue
+							}
+							if exprStmt, ok := funcLit.Body.List[0].(*ast.ExprStmt); ok {
+								if callExpr, ok := exprStmt.X.(*ast.CallExpr); ok {
+									if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
+										if ident, ok := selectorExpr.X.(*ast.Ident); ok {
+											// 找到包含 ellen.Printf 调用的 defer 语句
+											if ident.Name == "ellen" && selectorExpr.Sel.Name == "Printf" {
+												return false
+											}
+										}
+									}
+								}
+							}
+						}
+
+					}
+				}
+			}
+
 			// 分析函数的输入参数
 			inputParams := analyzeInputParams(function.Type.Params)
 			// 检查是否包含名为 "ctx" 的输入参数
