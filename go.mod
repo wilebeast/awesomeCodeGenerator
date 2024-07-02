@@ -1,4 +1,4 @@
-module awesomeCodeGenerator
+module github.com/wilebeast/awesomeCodeGenerator
 
 go 1.21
 

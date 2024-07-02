@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"awesomeCodeGenerator/ellen"
+	"github.com/wilebeast/awesomeCodeGenerator/ellen"
 )
 
 func sub(ctx context.Context, a, b int) (c int) {
